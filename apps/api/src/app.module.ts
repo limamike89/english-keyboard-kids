@@ -40,7 +40,7 @@ import { getEnvValue } from './config/env.config';
     LoggerModule,
     PrismaModule,
     ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'public', 'audio'),
+      rootPath: join(__dirname, '..', 'public', 'audio'),
       serveRoot: '/audio',
       serveStaticOptions: {
         index: false,
@@ -48,7 +48,7 @@ import { getEnvValue } from './config/env.config';
       },
     }),
     ServeStaticModule.forRoot({
-      rootPath: join(process.cwd(), 'public', 'media'),
+      rootPath: join(__dirname, '..', 'public', 'media'),
       serveRoot: '/media',
       serveStaticOptions: {
         index: false,

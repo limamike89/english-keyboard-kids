@@ -13,9 +13,16 @@ export default async function handler(req: any, res: any) {
     const app = await NestFactory.create(AppModule, new ExpressAdapter(server), { bufferLogs: true })
 
     app.enableShutdownHooks()
-    app.use(helmet())
+    app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }))
+
+    const corsOrigin = process.env.CORS_ORIGINS
+      ? process.env.CORS_ORIGINS === '*'
+        ? true
+        : process.env.CORS_ORIGINS.split(',')
+      : true
+
     app.enableCors({
-      origin: process.env.CORS_ORIGINS === '*' ? true : process.env.CORS_ORIGINS?.split(','),
+      origin: corsOrigin,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       credentials: true,
       allowedHeaders: ['Content-Type', 'Authorization', 'x-session-token', 'x-request-id', 'idempotency-key'],
@@ -30,8 +37,14 @@ export default async function handler(req: any, res: any) {
       }),
     )
 
-    await app.init()
-    cachedApp = server
+    try {
+      await app.init()
+      cachedApp = server
+    } catch (err) {
+      console.error('[serverless] NestJS init failed:', err)
+      res.status(500).json({ error: 'App initialization failed', message: (err as Error).message })
+      return
+    }
   }
   cachedApp(req, res)
 }

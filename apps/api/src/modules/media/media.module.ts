@@ -1,7 +1,6 @@
 import { Module } from '@nestjs/common'
 import { MulterModule } from '@nestjs/platform-express'
-import { diskStorage } from 'multer'
-import { extname, join } from 'path'
+import { memoryStorage } from 'multer'
 import { PrismaModule } from '../../prisma/prisma.module'
 import { MediaController } from './media.controller'
 import { MediaService } from './media.service'
@@ -12,13 +11,7 @@ import { AuditModule } from '../../modules/audit/audit.module'
     PrismaModule,
     AuditModule,
     MulterModule.register({
-      storage: diskStorage({
-        destination: join(__dirname, '..', '..', '..', 'public', 'media'),
-        filename: (_req, file, cb) => {
-          const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`
-          cb(null, `${uniqueSuffix}${extname(file.originalname)}`)
-        },
-      }),
+      storage: memoryStorage(),
       limits: {
         fileSize: 10 * 1024 * 1024,
       },
