@@ -1,0 +1,27 @@
+{
+  "name": "english-keyboard-kids",
+  "private": true,
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:api": "npm -w @ekkids/api run dev",
+    "dev:frontend": "npm -w @ekkids/frontend run dev",
+    "build:api": "npm -w @ekkids/api run build",
+    "build:frontend": "npm -w @ekkids/frontend run build",
+    "start:prod": "npm -w @ekkids/api run start:prod",
+    "seed": "npm -w @ekkids/api run prisma:seed",
+    "migrate": "npm -w @ekkids/api run prisma:migrate:deploy",
+    "generate": "npm -w @ekkids/api run prisma:generate",
+    "lint": "npm -w @ekkids/api run lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,json}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,json}\""
+  },
+  "devDependencies": {
+    "prettier": "^3.4.2",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

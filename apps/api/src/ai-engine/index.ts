@@ -1,0 +1,6 @@
+export { AIEngine } from './facade'
+export { DifficultyAdapter } from './difficulty-adapter'
+export { SpacedRepetition } from './spaced-repetition'
+export { ContentSelector } from './content-selector'
+export { LearningPathPlanner } from './learning-path'
+export type * from './types'

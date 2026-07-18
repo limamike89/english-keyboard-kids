@@ -1,0 +1,111 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - "apps/api/**"
+      - "package.json"
+      - "package-lock.json"
+  push:
+    branches: [main, develop]
+    paths:
+      - "apps/api/**"
+
+env:
+  NODE_VERSION: "20"
+
+jobs:
+  lint-and-typecheck:
+    name: Lint & TypeCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Lint
+        working-directory: apps/api
+        run: npx eslint "src/**/*.ts" --max-warnings 0
+
+      - name: Type Check
+        working-directory: apps/api
+        run: npx tsc --noEmit
+
+  test:
+    name: Tests
+    needs: lint-and-typecheck
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ekkids_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Run Migrations
+        working-directory: apps/api
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ekkids_test?schema=public
+
+      - name: Run Tests
+        working-directory: apps/api
+        run: npx jest --coverage
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/ekkids_test?schema=public
+          NODE_ENV: test
+          JWT_SECRET: test-secret-key-for-ci
+
+  build:
+    name: Build
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Generate Prisma Client
+        working-directory: apps/api
+        run: npx prisma generate
+
+      - name: Build
+        working-directory: apps/api
+        run: npx nest build

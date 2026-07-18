@@ -1,0 +1,11 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "api/index.ts", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/audio/(.*)", "dest": "/public/audio/$1" },
+    { "src": "/media/(.*)", "dest": "/public/media/$1" },
+    { "src": "/(.*)", "dest": "/api/index.ts" }
+  ]
+}

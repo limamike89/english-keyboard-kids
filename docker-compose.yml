@@ -1,0 +1,69 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ekkids-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: ekkids
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: ekkids-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/docker/Dockerfile.api
+    container_name: ekkids-api
+    ports:
+      - "4000:4000"
+    environment:
+      NODE_ENV: development
+      PORT: 4000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/ekkids?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: docker-dev-secret-key-change-me
+      SWAGGER_ENABLED: "true"
+      CORS_ORIGINS: "*"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./apps/api/src:/app/apps/api/src
+      - ./public:/app/public
+    command: >
+      sh -c "npx prisma migrate deploy && npx prisma db seed && node dist/main"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/docker/Dockerfile.frontend
+    container_name: ekkids-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api
+    environment:
+      VITE_API_URL: http://localhost:4000
+
+volumes:
+  postgres_data:

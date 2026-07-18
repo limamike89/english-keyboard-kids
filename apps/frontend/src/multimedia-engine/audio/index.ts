@@ -1,0 +1,6 @@
+export { AudioPlayer } from './audio-player'
+export { AudioPool } from './audio-pool'
+export { AudioManager } from './audio-manager'
+export { VolumeController } from './volume-controller'
+export { SpeechSynthesizer } from './speech-synthesizer'
+export type { SpeechOptions } from './speech-synthesizer'

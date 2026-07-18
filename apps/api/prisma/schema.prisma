@@ -1,0 +1,737 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────
+// ENUMS
+// ─────────────────────────────
+
+enum GameMode {
+  LETTERS
+  NUMBERS
+  MIXED
+}
+
+enum QuestionType {
+  LETTER
+  NUMBER
+}
+
+enum UserRoleType {
+  CHILD
+  PARENT
+  TEACHER
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+enum AchievementCategory {
+  STREAK
+  SCORE
+  COMPLETION
+  ACCURACY
+  SPECIAL
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+// ─────────────────────────────
+// USER & AUTH
+// ─────────────────────────────
+
+model User {
+  id           String   @id @default(uuid()) @db.Uuid
+  username     String   @unique
+  displayName  String
+  email        String?  @unique
+  passwordHash String?
+  avatarUrl    String?
+  language     String   @default("en")
+  isActive     Boolean  @default(true)
+  xp           Int      @default(0)
+  coins        Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime?
+
+  roles        UserRole[]
+  progress     UserProgress[]
+  answers      UserAnswer[]
+  stats        UserStats[]
+  achievements UserAchievement[]
+  sessions     UserSession[]
+  dailyStreaks DailyStreak[]
+  analyticsEvents AnalyticsEvent[]
+  studentMetric   StudentMetric?
+  letterDifficulties LetterDifficulty[]
+  numberDifficulties NumberDifficulty[]
+
+  parentChildren      ParentChild[]   @relation("ParentChildren")
+  childParents        ParentChild[]   @relation("ChildParents")
+  parentSettings      ParentSettings?
+  reports             Report[]
+  linkCodesAsParent   LinkCode[]      @relation("LinkCodeParent")
+  linkCodesAsChild    LinkCode[]      @relation("LinkCodeChild")
+
+  teacherClasses      TeacherClass[]
+  classStudents       ClassStudent[]
+  assignedLessons     Assignment[]
+  spacedRepetitionItems SpacedRepetitionItem[]
+  cmsChangeLogs       CmsChangeLog[]
+
+  @@index([email])
+  @@index([username])
+  @@index([deletedAt])
+  @@map("User")
+}
+
+model UserRole {
+  id        String       @id @default(uuid()) @db.Uuid
+  userId    String       @db.Uuid
+  role      UserRoleType
+  createdAt DateTime     @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, role])
+  @@map("UserRole")
+}
+
+model UserSession {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  sessionToken   String   @unique
+  deviceInfo     String?
+  ipAddress      String?
+  lastActivityAt DateTime @default(now())
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([sessionToken])
+  @@index([expiresAt])
+  @@index([userId])
+  @@map("UserSession")
+}
+
+model DailyStreak {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  date      DateTime @db.Date
+  completed Boolean  @default(false)
+  xpEarned  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId, date])
+  @@map("DailyStreak")
+}
+
+// ─────────────────────────────
+// LESSONS & QUESTIONS
+// ─────────────────────────────
+
+model Lesson {
+  id            String   @id @default(uuid()) @db.Uuid
+  mode          GameMode
+  language      String   @default("en")
+  title         String
+  description   String?
+  level         Int      @default(1)
+  order         Int
+  questionCount Int      @default(10)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  deletedAt     DateTime?
+
+  questions Question[]
+  progress  UserProgress[]
+  assignments Assignment[]
+
+  @@unique([mode, language, level])
+  @@index([mode, language, isActive])
+  @@index([order])
+  @@map("Lesson")
+}
+
+model Question {
+  id            String       @id @default(uuid()) @db.Uuid
+  lessonId      String       @db.Uuid
+  type          QuestionType
+  audioKey      String
+  correctAnswer String
+  displayText   String?
+  hint          String?
+  order         Int
+  wordBankId    String?      @db.Uuid
+  isActive      Boolean      @default(true)
+  difficulty    Difficulty   @default(BEGINNER)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  deletedAt     DateTime?
+
+  lesson  Lesson       @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  word    WordBank?    @relation(fields: [wordBankId], references: [id], onDelete: SetNull)
+  answers UserAnswer[]
+  spacedRepetitionItems SpacedRepetitionItem[]
+
+  @@unique([lessonId, order])
+  @@index([lessonId, isActive])
+  @@index([audioKey])
+  @@index([correctAnswer])
+  @@map("Question")
+}
+
+model WordBank {
+  id            String     @id @default(uuid()) @db.Uuid
+  letter        String     @db.Char(1)
+  word          String
+  language      String     @default("en")
+  difficulty    Difficulty @default(BEGINNER)
+  syllableCount Int?
+  description   String?
+  imageUrl      String?
+  audioUrl      String?
+  categoryId    String?    @db.Uuid
+  tags          String[]
+  level         Int        @default(1)
+  order         Int        @default(0)
+  isActive      Boolean    @default(true)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+  deletedAt     DateTime?
+
+  category Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  questions Question[]
+
+  @@index([letter, language, isActive])
+  @@index([word, language])
+  @@index([categoryId])
+  @@map("WordBank")
+}
+
+// ─────────────────────────────
+// PROGRESS & STATISTICS
+// ─────────────────────────────
+
+model UserProgress {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @db.Uuid
+  lessonId        String    @db.Uuid
+  score           Int       @default(0)
+  totalQuestions  Int       @default(0)
+  correctFirstTry Int       @default(0)
+  stars           Int       @default(0)
+  bestStreak      Int       @default(0)
+  completed       Boolean   @default(false)
+  completedAt     DateTime?
+  playCount       Int       @default(0)
+  lastPlayedAt    DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lessonId])
+  @@index([userId, completed])
+  @@index([lastPlayedAt])
+  @@map("UserProgress")
+}
+
+model UserAnswer {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @db.Uuid
+  questionId     String   @db.Uuid
+  lessonId       String   @db.Uuid
+  answer         String
+  isCorrect      Boolean
+  attemptNumber  Int      @default(1)
+  timeToAnswerMs Int?
+  createdAt      DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([questionId])
+  @@index([userId, lessonId])
+  @@index([isCorrect])
+  @@map("UserAnswer")
+}
+
+model UserStats {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  mode            GameMode
+  gamesPlayed     Int      @default(0)
+  totalScore      BigInt   @default(0)
+  totalCorrect    Int      @default(0)
+  totalIncorrect  Int      @default(0)
+  totalQuestions  Int      @default(0)
+  bestStreak      Int      @default(0)
+  currentStreak   Int      @default(0)
+  avgResponseTime Float?
+  lastPlayedAt    DateTime?
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, mode])
+  @@map("UserStats")
+}
+
+// ─────────────────────────────
+// ACHIEVEMENTS & GAMIFICATION
+// ─────────────────────────────
+
+model Achievement {
+  id          String              @id @default(uuid()) @db.Uuid
+  key         String              @unique
+  name        String
+  description String
+  icon        String
+  iconUrl     String?
+  category    AchievementCategory
+  group       String?
+  criteria    Json
+  rules       Json?
+  xpReward    Int                 @default(0)
+  coinsReward Int                 @default(0)
+  maxProgress Int                 @default(1)
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+  deletedAt   DateTime?
+
+  userAchievements UserAchievement[]
+
+  @@index([category])
+  @@index([group])
+  @@index([isActive])
+  @@map("Achievement")
+}
+
+model UserAchievement {
+  id            String    @id @default(uuid()) @db.Uuid
+  userId        String    @db.Uuid
+  achievementId String    @db.Uuid
+  progress      Int       @default(0)
+  target        Int       @default(1)
+  unlockedAt    DateTime?
+  createdAt     DateTime  @default(now())
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+  @@index([unlockedAt])
+  @@map("UserAchievement")
+}
+
+// ─────────────────────────────
+// CMS - CATEGORIES, LANGUAGES, MEDIA
+// ─────────────────────────────
+
+model Category {
+  id          String   @id @default(uuid()) @db.Uuid
+  name        String
+  slug        String   @unique
+  description String?
+  icon        String?
+  color       String?
+  language    String   @default("en")
+  isActive    Boolean  @default(true)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  words WordBank[]
+
+  @@index([language, isActive])
+  @@index([slug])
+  @@map("Category")
+}
+
+model Language {
+  id         String   @id @default(uuid()) @db.Uuid
+  code       String   @unique
+  name       String
+  nativeName String?
+  flag       String?
+  direction  String   @default("ltr")
+  isActive   Boolean  @default(true)
+  isDefault  Boolean  @default(false)
+  order      Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([code])
+  @@map("Language")
+}
+
+model Media {
+  id           String   @id @default(uuid()) @db.Uuid
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  type         String      @default("image")
+  altText      String?
+  language     String?
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  versions MediaVersion[]
+
+  @@index([type, language])
+  @@index([filename])
+  @@map("Media")
+}
+
+model MediaVersion {
+  id        String   @id @default(uuid()) @db.Uuid
+  mediaId   String   @db.Uuid
+  version   Int      @default(1)
+  filename  String
+  size      Int
+  metadata  Json?
+  createdAt DateTime @default(now())
+
+  media Media @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([mediaId, version])
+  @@map("MediaVersion")
+}
+
+model CmsSetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  value       Json
+  description String?
+  category    String   @default("general")
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([category])
+  @@map("CmsSetting")
+}
+
+model CmsChangeLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  entityType String
+  entityId   String   @db.Uuid
+  action     String
+  fieldName  String?
+  oldValue   Json?
+  newValue   Json?
+  userId     String?  @db.Uuid
+  reason     String?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([userId])
+  @@map("CmsChangeLog")
+}
+
+// ─────────────────────────────
+// CONTENT & CONFIGURATION
+// ─────────────────────────────
+
+model ContentTranslation {
+  id         String   @id @default(uuid()) @db.Uuid
+  entityType String
+  entityId   String   @db.Uuid
+  language   String
+  fieldName  String
+  value      String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([entityType, entityId, language, fieldName])
+  @@index([entityType, entityId])
+  @@map("ContentTranslation")
+
+
+}
+
+model GameConfig {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("GameConfig")
+}
+
+// ─────────────────────────────
+// ANALYTICS
+// ─────────────────────────────
+
+model AnalyticsEvent {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @db.Uuid
+  sessionId  String?
+  eventType  String
+  properties Json?
+  createdAt  DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([eventType, createdAt])
+  @@index([createdAt])
+  @@map("AnalyticsEvent")
+}
+
+model StudentMetric {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @unique @db.Uuid
+  totalGames       Int      @default(0)
+  totalCorrect     Int      @default(0)
+  totalIncorrect   Int      @default(0)
+  totalQuestions   Int      @default(0)
+  bestStreak       Int      @default(0)
+  currentStreak    Int      @default(0)
+  totalXp          Int      @default(0)
+  totalCoins       Int      @default(0)
+  avgResponseTimeMs Float   @default(0)
+  accuracy         Float    @default(0)
+  gamesCompleted   Int      @default(0)
+  lastActivityAt   DateTime?
+  updatedAt        DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("StudentMetric")
+}
+
+model LetterDifficulty {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  letter    String   @db.Char(1)
+  attempts  Int      @default(0)
+  correct   Int      @default(0)
+  incorrect Int      @default(0)
+  accuracy  Float    @default(0)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, letter])
+  @@index([userId, accuracy])
+  @@map("LetterDifficulty")
+}
+
+model NumberDifficulty {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  number    String   @db.Char(1)
+  attempts  Int      @default(0)
+  correct   Int      @default(0)
+  incorrect Int      @default(0)
+  accuracy  Float    @default(0)
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, number])
+  @@index([userId, accuracy])
+  @@map("NumberDifficulty")
+}
+
+// ─────────────────────────────
+// PARENT / TEACHER PORTAL
+// ─────────────────────────────
+
+model ParentChild {
+  id         String   @id @default(uuid()) @db.Uuid
+  parentId   String   @db.Uuid
+  childId    String   @db.Uuid
+  relationship String? // e.g., "father", "mother", "guardian"
+  createdAt  DateTime @default(now())
+
+  parent User @relation("ParentChildren", fields: [parentId], references: [id], onDelete: Cascade)
+  child  User @relation("ChildParents", fields: [childId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, childId])
+  @@index([parentId])
+  @@index([childId])
+  @@map("ParentChild")
+}
+
+model ParentSettings {
+  id              String   @id @default(uuid()) @db.Uuid
+  parentId        String   @unique @db.Uuid
+  dailyTimeLimit  Int?     // in minutes
+  contentRestrictions Json? // e.g., { "modes": ["LETTERS", "NUMBERS"] }
+  enableReports   Boolean  @default(true)
+  reportFrequency String   @default("weekly") // daily, weekly, monthly
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  parent User @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@map("ParentSettings")
+}
+
+model Report {
+  id        String   @id @default(uuid()) @db.Uuid
+  parentId  String   @db.Uuid
+  childId   String   @db.Uuid
+  period    String   // "daily", "weekly", "monthly"
+  periodStart DateTime
+  periodEnd   DateTime
+  data      Json
+  generatedAt DateTime @default(now())
+
+  parent User @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  @@index([parentId, childId, periodStart])
+  @@index([generatedAt])
+  @@map("Report")
+}
+
+model LinkCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  code       String    @unique
+  parentId   String    @db.Uuid
+  childId    String?   @db.Uuid
+  expiresAt  DateTime
+  redeemedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  parent User  @relation("LinkCodeParent", fields: [parentId], references: [id], onDelete: Cascade)
+  child  User? @relation("LinkCodeChild", fields: [childId], references: [id], onDelete: SetNull)
+
+  @@index([code])
+  @@map("LinkCode")
+}
+
+// ─────────────────────────────
+// TEACHER PORTAL
+// ─────────────────────────────
+
+model TeacherClass {
+  id          String   @id @default(uuid()) @db.Uuid
+  teacherId   String   @db.Uuid
+  name        String
+  description String?
+  code        String   @unique // join code for students
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  teacher User    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  students ClassStudent[]
+  assignments Assignment[]
+
+  @@index([teacherId])
+  @@index([code])
+  @@map("TeacherClass")
+}
+
+model ClassStudent {
+  id        String   @id @default(uuid()) @db.Uuid
+  classId   String   @db.Uuid
+  studentId String   @db.Uuid
+  joinedAt  DateTime @default(now())
+
+  class   TeacherClass @relation(fields: [classId], references: [id], onDelete: Cascade)
+  student User         @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([classId, studentId])
+  @@index([classId])
+  @@index([studentId])
+  @@map("ClassStudent")
+}
+
+model Assignment {
+  id        String    @id @default(uuid()) @db.Uuid
+  teacherId String    @db.Uuid
+  classId   String?   @db.Uuid
+  lessonId  String    @db.Uuid
+  title     String
+  dueDate   DateTime?
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  teacher User         @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  class   TeacherClass? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  lesson  Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([teacherId])
+  @@index([classId])
+  @@index([lessonId])
+  @@map("Assignment")
+}
+
+// ─────────────────────────────
+// AI LEARNING ENGINE
+// ─────────────────────────────
+
+model SpacedRepetitionItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @db.Uuid
+  questionId      String   @db.Uuid
+  easinessFactor  Float    @default(2.5)
+  interval        Int      @default(0)    // days
+  repetitions     Int      @default(0)
+  nextReviewAt    DateTime
+  lastReviewedAt  DateTime?
+  correctCount    Int      @default(0)
+  incorrectCount  Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, questionId])
+  @@index([userId, nextReviewAt])
+  @@index([userId, questionId])
+  @@map("SpacedRepetitionItem")
+}
+
+// ─────────────────────────────
+// AUDIT
+// ─────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  entityType String
+  entityId   String
+  action     String
+  oldValue   Json?
+  newValue   Json?
+  userId     String?  @db.Uuid
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
+  @@index([userId])
+  @@map("AuditLog")
+}

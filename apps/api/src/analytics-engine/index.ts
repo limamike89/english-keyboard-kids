@@ -1,0 +1,6 @@
+export { AnalyticsEngine } from './facade'
+export { InteractionCollector } from './collectors/interaction.collector'
+export { MetricsProcessor } from './processors/metrics-processor'
+export { DifficultyDetector } from './processors/difficulty-detector'
+export { ProgressQuery } from './queries/progress.query'
+export type * from './types'
